@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionAssist ALT - 画像説明自動生成ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/ScrollTrigger.min.js"></script>
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <style>
+	@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+body {
+    font-family: 'Poppins', sans-serif;
+    opacity: 0;
+    visibility: hidden;
+}
+
+.step-number {
+    font-size: 6rem;
+    font-weight: 700;
+    line-height: 1;
+    color: white;
+    opacity: 0.8;
+}
+
+.parallax {
+    overflow: hidden;
+    letter-spacing: -2px;
+    line-height: 0.8;
+    margin: 0;
+    white-space: nowrap;
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+.parallax .scroller {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 64px;
+    display: flex;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+}
+
+.parallax span {
+    display: block;
+    margin-right: 30px;
+}
+
+#loading-screen {
+    position: fixed;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.loader {
+    width: 48px;
+    height: 48px;
+    border: 5px solid #FFF;
+    border-bottom-color: #FF3D00;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.alt-popup {
+    position: absolute;
+    background-color: #000000;
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    max-width: 300px;
+    font-size: 14px;
+    line-height: 1.4;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.alt-popup.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.alt-popup-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.alt-popup-description {
+    opacity: 0.8;
+}
+
+.alt-button {
+    background-color: #000000;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    position: absolute;
+    bottom: 2%;
+    left: 2%;
+}
+
+.use-case {
+    display: flex;
+    background-color: #1B263B; /* 濃いめの青 */
+    padding: 16px;
+    border-radius: 8px;
+    color: white;
+    align-items: flex-start; /* ユーザーアイコンとテキストを上揃え */
+    gap: 16px; /* 要素間にスペースを追加 */
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.user-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.user-name {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.post-content {
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.relative img:not(.user-icon) {
+    transform: scale(1.07); /* 投稿内の画像のみを80%に縮小 */
+    margin-left: 0; /* 左揃えにする */
+}
+
+.relative {
+    /*background-color: #2d3748; /*ダークグレーの背景色を設定 */
+    padding: 16px; /* パディングを追加 */
+    border-radius: 8px; /* 角を丸くする */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* 画像を左揃え */
+}
+
+.post-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* 本文のパーツ間にスペースを追加 */
+    align-items: flex-start; /* 本文を左揃えにする */
+    width: 100%;
+}
+.review-card img,
+.review-card p.text-xl {
+    display: none;
+}
+#user-voice {
+    font-size: 1.75rem; /* 少し大きめのフォントサイズ */
+    margin-top: 24px;   /* テキストの上部に余白を追加 */
+    text-align: center; /* テキストを中央揃え */
+}
+    </style>
+</head>
+<body class="bg-black text-white">
+    <div id="loading-screen">
+        <span class="loader"></span>
+    </div>
+
+    <header class="fixed top-0 left-0 w-full bg-black bg-opacity-80 backdrop-blur-md z-50">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+        <img src="app_image.png" alt="VisionAssist ALT Logo" class="h-12">
+        <span class="text-white text-sm opacity-90">VisionAssist ALT</span>
+    </div>
+</header>
+
+    <section class="h-screen flex items-center justify-center text-center bg-gradient-to-br from-gray-900 to-black">
+        <div class="max-w-4xl mx-auto px-4" id="hero">
+            <img src="app_image.png" alt="VisionAssist ALT アプリイメージ" class="w-full max-w-xs mx-auto mb-8">
+            <h1 class="text-6xl font-bold mb-6">VisionAssist ALT</h1>
+            <p class="text-xl">Xのポストで視覚障害者向けの画像説明を自動生成するツール</p>
+        </div>
+    </section>
+
+    <section class="py-24 bg-gray-900">
+        <div class="container mx-auto px-4">
+            <h2 class="text-4xl font-bold mb-16 text-center" id="about">VisionAssist ALTとは</h2>
+            <div class="max-w-4xl mx-auto">
+                <video autoplay loop muted playsinline class="w-full rounded-lg shadow-2xl mb-8" id="about-video">
+                    <source src="about_video.mov" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <p class="text-lg">VisionAssist ALTは、Xに画像を投稿する際、視覚障害者向けの説明文（ALTテキスト）を自動生成するAIツールです。画像内の人物、物体、風景、文字を認識し、分かりやすい日本語で説明します。商品名や撮影場所も特定でき、視覚障害のある方々もXの画像を楽しめるようサポートします。​​​​​​​​​​​​​​​​</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-24 bg-black">
+        <div class="container mx-auto px-4 max-w-6xl">
+            <h2 class="text-4xl font-bold mb-16 text-center" id="how-to">使い方</h2>
+            <div class="space-y-24">
+				<div class="flex flex-col md:flex-row items-center howto-step">
+                    <div class="md:w-2/5 mb-8 md:mb-0 md:mr-8">
+                        <img src="step2.jpeg" alt="ツールアクセスのイメージ" class="w-full rounded-lg shadow-lg">
+                    </div>
+                    <div class="md:w-3/5">
+                        <div class="step-number mb-4">01</div>
+                        <h3 class="text-2xl font-semibold mb-4">ツールにアクセス</h3>
+                        <p class="text-lg"><a href="https://chatgpt.com/g/g-DRYfgEhV6-visionassist-alt" style="color: #1E90FF; text-decoration: underline;">VisionAssist ALTのツールページ</a>にアクセスしてください。<br>その後、「サインアップしてチャットを使用する」ボタンをタップしてください。既にChatGPTアカウントをお持ちの方は、すぐにご利用を開始できますので、ステップ1をスキップしてください。</p>
+                    </div>
+                </div>
+                <div class="flex flex-col md:flex-row items-center howto-step">
+                    <div class="md:w-2/5 mb-8 md:mb-0 md:mr-8">
+                        <img src="step1.jpeg" alt="アカウント作成のイメージ" class="w-full rounded-lg shadow-lg">
+                    </div>
+                    <div class="md:w-3/5">
+                        <div class="step-number mb-4">02</div>
+                        <h3 class="text-2xl font-semibold mb-4">アカウント作成</h3>
+                        <p class="text-lg">メールアドレスやGoogleアカウント等でアカウントを作成しましょう。<br>また、<a href="https://auth.openai.com/authorize?client_id=TdJIcbe16WoTHtN95nyywh5E4yOo6ItG&scope=openid%20email%20profile%20offline_access%20model.request%20model.read%20organization.read%20organization.write&response_type=code&redirect_uri=https%3A%2F%2Fchatgpt.com%2Fapi%2Fauth%2Fcallback%2Flogin-web&audience=https%3A%2F%2Fapi.openai.com%2Fv1&device_id=f1c17356-f57d-44fd-9b10-1b19397c4506&prompt=login&screen_hint=signup&ext-statsig-tier=production&ext-oai-did=f1c17356-f57d-44fd-9b10-1b19397c4506&flow=control&state=VxxmVmA9K1mBb0jN6EEQapw4SHzbGcEl2c3nlis0wPU&code_challenge=Pc61YC_T2pyeTEeNeuc7kQoGFndWn8ZVSvatIntcUfc&code_challenge_method=S256" style="color: #1E90FF; text-decoration: underline;">こちらのリンク</a>からもアクセスできます。</p>
+                    </div>
+                </div>
+                <div class="flex flex-col md:flex-row items-center howto-step">
+                    <div class="md:w-2/5 mb-8 md:mb-0 md:mr-8">
+                        <video autoplay loop muted playsinline class="w-full rounded-lg shadow-lg">
+                            <source src="step3.mov" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div class="md:w-3/5">
+                        <div class="step-number mb-4">03</div>
+                        <h3 class="text-2xl font-semibold mb-4">画像をアップロード</h3>
+                        <p class="text-lg">説明を生成したい画像をアップロードし、送信してください。</p>
+                    </div>
+                </div>
+                <div class="flex flex-col md:flex-row items-center howto-step">
+                    <div class="md:w-2/5 mb-8 md:mb-0 md:mr-8">
+                        <video autoplay loop muted playsinline class="w-full rounded-lg shadow-lg">
+                            <source src="step4.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div class="md:w-3/5">
+                        <div class="step-number mb-4">04</div>
+                        <h3 class="text-2xl font-semibold mb-4">ALTテキストを適用</h3>
+                        <p class="text-lg">生成された説明文をコピーし、Xの投稿時に画像のALTテキストを添付しましょう。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-24 bg-gray-900">
+  <div class="container mx-auto px-4">
+    <h2 class="text-4xl font-bold mb-16 text-center" id="use-cases">活用事例</h2>
+    <div class="space-y-16">
+      <!-- 旅行好きの投稿 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-800 rounded-lg overflow-hidden max-w-6xl mx-auto">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <img src="user1_icon.jpeg" alt="画像には、カメラを持った笑顔の若い女性が描かれています。背景には、日本の象徴的な山である富士山がそびえ立っており、晴天の空が広がっています。女性は短い黒髪で、カジュアルなジャケットを着てリュックを背負っています。彼女は風景写真を撮影しているかのような場面を示唆しており、背景の広がる自然と富士山が強調されています。" class="w-12 h-12 rounded-full mr-4">
+            <div>
+              <span class="text-lg font-semibold">旅行好き</span>
+              <p class="text-sm text-gray-400">@traveler</p>
+            </div>
+          </div>
+          <p class="text-lg mb-4">綺麗✨</p>
+          <div class="relative">
+            <img src="user1_image.png" alt="この写真は、飛行機の窓から見える景色を撮影したものですね。窓の外には「HELSINKI AIRPORT」という文字が見え、飛行機はヘルシンキ空港に停まっていることが分かります。また、機内のモニターや座席の様子も写っており、座席に座っている状態で撮影されたようです。この写真はフィンランドに関連した旅行の一部かもしれませんね。" class="w-full object-cover rounded-lg">
+            <button class="alt-button absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">ALT</button>
+          </div>
+        </div>
+        <div class="p-6 flex flex-col justify-center">
+          <h3 class="text-2xl font-semibold mb-4">景色</h3>
+          <p class="text-lg">画像の中に隠れたヒントを見逃しません。空港の看板や街の名所が写っていれば、それを手がかりに撮影場所を教えてくれます。例えば、空港の風景写真に「HELSINKI AIRPORT」という文字が写り込んでいれば、それを認識し、ユーザーがフィンランド旅行中であることを伝えます。</p>
+        </div>
+      </div>
+
+      <!-- 家族LINEの投稿 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-800 rounded-lg overflow-hidden max-w-6xl mx-auto">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <img src="user2_icon.jpeg" alt="画像には、リビングルームで微笑む3人家族が描かれています。父親は眼鏡をかけており、白いシャツを着て、膝の上に小さな子供を抱えています。母親は茶色のエプロンを着て、家族の隣に座っています。背景にはテレビや時計が見え、家庭的で温かい雰囲気が伝わります。全体的に穏やかな家族の団らんの一場面を描いたイラストです。" class="w-12 h-12 rounded-full mr-4">
+            <div>
+              <span class="text-lg font-semibold">家族 LINE</span>
+              <p class="text-sm text-gray-400">@family_chat</p>
+            </div>
+          </div>
+          <p class="text-lg mb-4">今日も頑張ったな！</p>
+          <div class="relative">
+			  <img src="user2_image.jpeg" alt="画像には、チャットアプリのスクリーンショットが映っています。以下のメッセージが含まれています：<br>1. 緑色の吹き出しで、「今日の夜ご飯何？」と質問しています。<br>2. それに対して、「カレーだよ」と返答しています。<br>3. さらに、インド料理のようなカレーのイラストが送信されています。イラストには、ナンと3つの小皿に入った料理（カレーや付け合わせ）が描かれています。" class="w-full object-cover rounded-lg">
+            <button class="alt-button absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">ALT</button>
+          </div>
+        </div>
+        <div class="p-6 flex flex-col justify-center">
+          <h3 class="text-2xl font-semibold mb-4">チャット</h3>
+          <p class="text-lg">チャットアプリの画面を細かく解説します。テキストメッセージだけでなく、送られてきた料理のイラストまで詳しく説明。会話の内容はもちろん、使われている絵文字や画像の雰囲気まで伝えることで、視覚情報がなくてもやりとりの様子が鮮明に伝わります。</p>
+        </div>
+      </div>
+
+      <!-- カフェ巡りの投稿 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-800 rounded-lg overflow-hidden max-w-6xl mx-auto">
+        <div class="p-6">
+          <div class="flex items-center mb-4">
+            <img src="user3_icon.jpeg" alt="画像には、カフェの中でカフェラテを手に微笑む女性が描かれています。彼女は長い髪で、カジュアルなセーターを着ています。カフェラテにはラテアートが施されており、リラックスした雰囲気が伝わります。背景にはモダンなカフェの内装が広がっており、吊り下げ式の照明や観葉植物、本棚などが見えます。全体的に、落ち着いた空間でリラックスしたひとときを過ごしている様子が描かれています。" class="w-12 h-12 rounded-full mr-4">
+            <div>
+              <span class="text-lg font-semibold">カフェ巡り</span>
+              <p class="text-sm text-gray-400">@cafe_hopper</p>
+            </div>
+          </div>
+          <p class="text-lg mb-4">これ最高だった</p>
+          <div class="relative">
+            <img src="user3_image.jpeg" alt="画像には、「伊藤園」と書かれたカップに入った抹茶ソフトクリームのデザートが映っています。デザートには、抹茶ソフトクリームの上に白玉団子が2つトッピングされ、さらにウエハースのような細長いクッキーが立てられています。背景には幾何学模様の明かりが見え、デザートが室内で撮影されたことがわかります。全体的に、日本の抹茶を使ったデザートの美味しさと雰囲気が感じられます。" class="w-full object-cover rounded-lg">
+            <button class="alt-button absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">ALT</button>
+          </div>
+        </div>
+        <div class="p-6 flex flex-col justify-center">
+          <h3 class="text-2xl font-semibold mb-4">グルメ</h3>
+          <p class="text-lg">料理の写真からおいしさが伝わるよう、見た目や素材を詳しく説明します。抹茶ソフトクリームの色合い、トッピング、さらには「伊藤園」というブランド名まで認識。気になったグルメを見つけるヒントにもなります。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+    <section class="py-24 bg-gray-900">
+        <div class="container mx-auto px-4">
+            <h2 class="text-4xl font-bold mb-16 text-center" id="reviews">ユーザー満足度とレビュー</h2>
+            <div class="text-center mb-16">
+                <p class="text-2xl mb-4">VisionAssist ALTの満足度</p>
+                <div class="w-3/4 h-8 bg-gray-700 rounded-full mx-auto overflow-hidden">
+                    <div class="w-3/4 h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full" id="satisfaction-bar"></div>
+                </div>
+                <p class="text-xl mt-4">75%のユーザーが満足と回答</p>
+				<p class="text-2xl mt-6 font-semibold" id="user-voice">Xユーザーからの声</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-gray-800 rounded-lg p-6 shadow-xl review-card">
+                    <img src="https://via.placeholder.com/60x60" alt="鈴木美咲のアイコン" class="w-16 h-16 rounded-full mx-auto mb-4">
+                    <p class="text-xl font-semibold text-orange-500 mb-2">鈴木美咲</p>
+                    <p class="text-lg">アクセシビリティ専門のメディアを運営しており、Xでは記事を図解で紹介しています。毎回、画像のALTテキストを書くのが手間でしたが、このツールのおかげでとても助かっています。</p>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-6 shadow-xl review-card">
+                    <img src="https://via.placeholder.com/60x60" alt="山田健太のアイコン" class="w-16 h-16 rounded-full mx-auto mb-4">
+                    <p class="text-xl font-semibold text-orange-500 mb-2">山田健太</p>
+                    <p class="text-lg">他のAIより詳しく画像を説明してくれます。背景やテキストまで読み取ってくれるので、フォロワーさんの投稿の意図がよく伝わります。画像の内容がよく分かるので返信も的確にでき、SNSがより楽しくなりました。</p>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-6 shadow-xl review-card">
+                    <img src="https://via.placeholder.com/60x60" alt="佐藤雅子のアイコン" class="w-16 h-16 rounded-full mx-auto mb-4">
+                    <p class="text-xl font-semibold text-orange-500 mb-2">佐藤雅子</p>
+                    <p class="text-lg">Vision Assist ALTで、SNSの写真を楽しめるようになりました。友達の投稿を理解でき、会話にも参加しやすくなりました。健常者の友達も使ってくれていて、より多くの人が楽しめるツールになれば嬉しいです。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-24 bg-gray-900">
+        <div class="container mx-auto px-4">
+            <h2 class="text-4xl font-bold mb-16 text-center" id="future">今後の展望</h2>
+            <div class="max-w-4xl mx-auto">
+                <img src="final_image.png" alt="VisionAssist ALTの将来展望イメージ" class="w-full rounded-lg shadow-2xl mb-8" id="future-image">
+                <p class="text-lg">VisionAssist ALTは、Xだけでなく、幅広いSNSやウェブサイトに対応するツールを目指しています。私たちのビジョンは、障害の有無に関わらず、誰もが等しく情報を受け取れる社会を実現することです。</p>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-gray-800 py-8">
+        <div class="container mx-auto px-4 text-center">
+            <p>&copy; 2024 VisionAssist ALT. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            document.body.style.opacity = '0';
+            document.body.style.visibility = 'hidden';
+        });
+
+        window.addEventListener('load', () => {
+            const loadingScreen = document.getElementById('loading-screen');
+            
+            startAnimations();
+
+            gsap.to(loadingScreen, {
+                opacity: 0,
+                duration: 0.5,
+                onComplete: () => {
+                    loadingScreen.style.display = 'none';
+                    gsap.to(document.body, {
+                        opacity: 1,
+                        visibility: 'visible',
+                        duration: 0.5
+                    });
+                }
+            });
+        });
+
+        function startAnimations() {
+            gsap.registerPlugin(ScrollTrigger);
+
+            gsap.from("#hero img", {
+                opacity: 0,
+                y: 50,
+                duration: 1,
+                scrollTrigger: {
+                    trigger: "#hero",
+                    start: "top center",
+                }
+            });
+
+            gsap.from("#hero h1, #hero p", {
+                opacity: 0,
+                y: 50,
+                duration: 1,
+                stagger: 0.2,
+                scrollTrigger: {
+                    trigger: "#hero",
+                    start: "top center",
+                }
+            });
+
+            gsap.from("#about-video", {
+                opacity: 0,
+                scale: 0.8,
+                duration: 1,
+                scrollTrigger: {
+                    trigger: "#about",
+                    start: "top center",
+                }
+            });
+
+            gsap.utils.toArray(".howto-step").forEach((step, index) => {
+                gsap.from(step, {
+                    opacity: 0,
+                    x: index % 2 === 0 ? -100 : 100,
+                    duration: 1,
+                    scrollTrigger: {
+                        trigger: step,
+                        start: "top 80%",
+                    }
+                });
+            });
+
+            gsap.to(".scroller", {
+                xPercent: -100,
+                ease: "none",
+                duration: 10,
+                repeat: -1,
+            });
+
+            gsap.utils.toArray(".grid").forEach((useCase, index) => {
+    gsap.from(useCase, {
+        opacity: 0,
+        y: 100, // 下からふわっと現れる
+        duration: 0.3,
+        scrollTrigger: {
+            trigger: useCase,
+            start: "top 80%",
+            toggleActions: "play none none none", // スクロールイン時に再生
+        }
+    });
+});
+
+            gsap.from("#satisfaction-bar", {
+                width: 0,
+                duration: 1.5,
+                ease: "power2.out",
+                scrollTrigger: {
+                    trigger: "#reviews",
+                    start: "top 80%",
+                }
+            });
+
+            gsap.utils.toArray(".review-card").forEach((card, index) => {
+                gsap.from(card, {
+                    opacity: 0,
+                    y: 50,
+                    duration: 1,
+                    delay: index * 0.2,
+                    scrollTrigger: {
+                        trigger: "#reviews",
+                        start: "top 80%",
+                    }
+                });
+            });
+
+            gsap.from("#future-image", {
+                opacity: 0,
+                scale: 0.8,
+                duration: 1,
+                scrollTrigger: {
+                    trigger: "#future",
+                    start: "top 80%",
+                }
+            });
+
+            gsap.from("#future p", {
+                opacity: 0,
+                y: 50,
+                duration: 1,
+                scrollTrigger: {
+                    trigger: "#future",
+                    start: "top 80%",
+                }
+            });
+        }
+
+        const altButtons = document.querySelectorAll('.alt-button');
+        let currentPopup = null;
+        let currentPopper = null;
+
+        altButtons.forEach(button => {
+            const img = button.previousElementSibling;
+            const altPopup = document.createElement('div');
+            altPopup.className = 'alt-popup';
+            altPopup.innerHTML = `
+                <div class="alt-popup-title">画像の説明</div>
+                <div class="alt-popup-description">${img.alt}</div>
+            `;
+            document.body.appendChild(altPopup);
+
+            const popperInstance = Popper.createPopper(button, altPopup, {
+                placement: 'top',
+                modifiers: [
+                    {
+                        name: 'offset',
+                        options: {
+                            offset: [0, 8],
+                        },
+                    },
+                ],
+            });
+
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentPopup && currentPopup !== altPopup) {
+                    hidePopup(currentPopup);
+                }
+                if (currentPopup === altPopup) {
+                    hidePopup(altPopup);
+                } else {
+                    showPopup(altPopup, popperInstance);
+                }
+            });
+        });
+
+        function showPopup(popup, popperInstance) {
+            popup.classList.add('show');
+            currentPopup = popup;
+            currentPopper = popperInstance;
+            anime({
+                targets: popup,
+                opacity: [0, 1],
+                translateY: [10, 0],
+                easing: 'easeOutCubic',
+                duration: 50
+            });
+        }
+
+        function hidePopup(popup) {
+            anime({
+                targets: popup,
+                opacity: 0,
+                translateY: 10,
+                easing: 'easeInCubic',
+                duration: 50,
+                complete: () => {
+                    popup.classList.remove('show');
+                    if (currentPopup === popup) {
+                        currentPopup = null;
+                        currentPopper = null;
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (currentPopup && !e.target.closest('.alt-popup') && !e.target.closest('.alt-button')) {
+                hidePopup(currentPopup);
+            }
+        });
+
+        window.addEventListener('scroll', () => {
+            if (currentPopup && currentPopper) {
+                currentPopper.update();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (currentPopup && currentPopper) {
+                currentPopper.update();
+            }
+        });
+    </script>
+</body>
+</html>
